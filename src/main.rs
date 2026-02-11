@@ -6,7 +6,7 @@ use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
     style::{
-        palette::tailwind::{BLUE, GREEN, SLATE},
+        palette::tailwind::{GREEN, SLATE},
         Color, Modifier, Style, Stylize,
     },
     symbols::border,
@@ -18,20 +18,9 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 
-const TODO_HEADER_STYLE: Style = Style::new().fg(SLATE.c100).bg(BLUE.c800);
-const NORMAL_ROW_BG: Color = SLATE.c950;
-const ALT_ROW_BG_COLOR: Color = SLATE.c900;
-const SELECTED_STYLE: Style = Style::new().bg(SLATE.c800).add_modifier(Modifier::BOLD);
-const TEXT_FG_COLOR: Color = SLATE.c200;
-const COMPLETED_TEXT_FG_COLOR: Color = GREEN.c500;
-
-const fn alternate_colors(i: usize) -> Color {
-    if i.is_multiple_of(2) {
-        NORMAL_ROW_BG
-    } else {
-        ALT_ROW_BG_COLOR
-    }
-}
+const SELECTED_STYLE: Style          = Style::new().bg(SLATE.c800).add_modifier(Modifier::BOLD);
+const TEXT_FG_COLOR: Color           = SLATE.c200;
+const COMPLETED_TEXT_FG_COLOR: Color = GREEN.c300;
 
 fn main() -> io::Result<()> {
     let mut terminal = ratatui::init();
@@ -57,6 +46,12 @@ struct TodoList {
 #[derive(Debug)]
 struct Task {
     todo: String,
+    info: Vec<SubTask>,
+    status: Status,
+}
+
+#[derive(Debug)]
+struct SubTask {
     info: String,
     status: Status,
 }
@@ -123,10 +118,8 @@ impl App {
             .list
             .items
             .iter()
-            .enumerate()
-            .map(|(i, todo_item)| {
-                let color = alternate_colors(i);
-                ListItem::from(todo_item).bg(color)
+            .map(|todo_item| {
+                ListItem::from(todo_item)
             })
             .collect();
 
@@ -140,6 +133,14 @@ impl App {
         // We need to disambiguate this trait method as both `Widget` and `StatefulWidget` share the
         // same method name `render`.
         StatefulWidget::render(list, area, buf, &mut self.list.state);
+    }
+
+    fn render_details(&mut self, area: Rect, buf: &mut Buffer) {
+        let text = Paragraph::new("Here are some details about the currently selected item:")
+            .centered();
+
+        Widget::render(text, area, buf);
+
     }
 }
 
@@ -168,13 +169,9 @@ impl Widget for &mut App {
             .constraints(vec![Constraint::Percentage(30), Constraint::Percentage(70)])
             .split(Block::inner(&block, area));
 
-        Paragraph::new("details")
-            .centered()
-            .block(Block::new().borders(Borders::ALL))
-            .render(layout[1], buf);
-
         block.render(area, buf);
         self.render_list(layout[0], buf);
+        self.render_details(layout[1], buf);
     }
 }
 
@@ -183,7 +180,10 @@ impl Task {
         Self {
             status,
             todo: todo.to_string(),
-            info: info.to_string(),
+            info: SubTask::from_iter([
+                    Status::Upcoming,
+                    "Write down some tasks",
+                ]),
         }
     }
 }
@@ -226,5 +226,16 @@ impl FromIterator<(Status, &'static str, &'static str)> for TodoList {
             .collect();
         let state = ListState::default();
         Self { items, state }
+    }
+}
+
+impl FromIterator<(Status, &'static str)> for Task {
+    fn from_iter<I: IntoIterator<Item = (Status, &'static str)>>(iter: I) -> Self {
+        let items = iter
+            .into_iter()
+            .map(|(status, info)| SubTask::new(status, info))
+            .collect();
+        let state = ListState::default();
+        Self { state }
     }
 }

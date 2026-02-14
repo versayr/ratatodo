@@ -18,8 +18,8 @@ use ratatui::{
     DefaultTerminal, Frame,
 };
 
-const SELECTED_STYLE: Style          = Style::new().bg(SLATE.c800).add_modifier(Modifier::BOLD);
-const TEXT_FG_COLOR: Color           = SLATE.c200;
+const SELECTED_STYLE: Style = Style::new().bg(SLATE.c800).add_modifier(Modifier::BOLD);
+const TEXT_FG_COLOR: Color = SLATE.c200;
 const COMPLETED_TEXT_FG_COLOR: Color = GREEN.c300;
 
 fn main() -> io::Result<()> {
@@ -45,14 +45,7 @@ struct TodoList {
 
 #[derive(Debug)]
 struct Task {
-    todo: String,
-    info: Vec<SubTask>,
-    status: Status,
-}
-
-#[derive(Debug)]
-struct SubTask {
-    info: String,
+    title: String,
     status: Status,
 }
 
@@ -93,7 +86,9 @@ impl App {
     fn handle_key_events(&mut self, key_event: KeyEvent) {
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
-            KeyCode::Char('n') => todo!(),
+            KeyCode::Char('n') | KeyCode::Char('i') | KeyCode::Char('a') | KeyCode::Char('o') => {
+                self.add_task()
+            }
             KeyCode::Char('m') => todo!(),
             KeyCode::Char('h') | KeyCode::Left => todo!(),
             KeyCode::Char('j') | KeyCode::Down => todo!(),
@@ -107,9 +102,13 @@ impl App {
         self.exit = true;
     }
 
+    fn add_task(&mut self) {
+        todo!()
+    }
+
     fn render_list(&mut self, area: Rect, buf: &mut Buffer) {
         let block = Block::new()
-            .title(Line::raw("Task List").centered())
+            .title(Line::raw(" ").centered())
             .borders(Borders::TOP)
             .border_set(border::EMPTY);
 
@@ -118,9 +117,7 @@ impl App {
             .list
             .items
             .iter()
-            .map(|todo_item| {
-                ListItem::from(todo_item)
-            })
+            .map(|todo_item| ListItem::from(todo_item))
             .collect();
 
         // Create a List from all list items and highlight the currently selected one
@@ -133,14 +130,6 @@ impl App {
         // We need to disambiguate this trait method as both `Widget` and `StatefulWidget` share the
         // same method name `render`.
         StatefulWidget::render(list, area, buf, &mut self.list.state);
-    }
-
-    fn render_details(&mut self, area: Rect, buf: &mut Buffer) {
-        let text = Paragraph::new("Here are some details about the currently selected item:")
-            .centered();
-
-        Widget::render(text, area, buf);
-
     }
 }
 
@@ -166,24 +155,19 @@ impl Widget for &mut App {
 
         let layout = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints(vec![Constraint::Percentage(30), Constraint::Percentage(70)])
+            .constraints(vec![Constraint::Percentage(100)])
             .split(Block::inner(&block, area));
 
         block.render(area, buf);
         self.render_list(layout[0], buf);
-        self.render_details(layout[1], buf);
     }
 }
 
 impl Task {
-    fn new(status: Status, todo: &str, info: &str) -> Self {
+    fn new(status: Status, title: &str) -> Self {
         Self {
             status,
-            todo: todo.to_string(),
-            info: SubTask::from_iter([
-                    Status::Upcoming,
-                    "Write down some tasks",
-                ]),
+            title: title.to_string(),
         }
     }
 }
@@ -191,10 +175,10 @@ impl Task {
 impl From<&Task> for ListItem<'_> {
     fn from(value: &Task) -> Self {
         let line = match value.status {
-            Status::Upcoming => Line::styled(format!(" ☐ {}", value.todo), TEXT_FG_COLOR),
-            Status::Active => Line::styled(format!(" ☐ {}", value.todo), TEXT_FG_COLOR),
+            Status::Upcoming => Line::styled(format!(" ☐ {}", value.title), TEXT_FG_COLOR),
+            Status::Active => Line::styled(format!(" ☐ {}", value.title), TEXT_FG_COLOR),
             Status::Completed => {
-                Line::styled(format!(" ✓ {}", value.todo), COMPLETED_TEXT_FG_COLOR)
+                Line::styled(format!(" ✓ {}", value.title), COMPLETED_TEXT_FG_COLOR)
             }
         };
         ListItem::new(line)
@@ -206,36 +190,21 @@ impl Default for App {
         Self {
             exit: false,
             list: TodoList::from_iter([
-                (
-                    Status::Upcoming,
-                    "Write down some tasks",
-                    "Use this todo list tui application.",
-                ),
-                (Status::Active, "Relax", "Well done."),
-                (Status::Completed, "Get list items rendering", "Well done."),
+                (Status::Upcoming, "Write down some tasks"),
+                (Status::Active, "Relax"),
+                (Status::Completed, "Get list items rendering"),
             ]),
         }
     }
 }
 
-impl FromIterator<(Status, &'static str, &'static str)> for TodoList {
-    fn from_iter<I: IntoIterator<Item = (Status, &'static str, &'static str)>>(iter: I) -> Self {
-        let items = iter
-            .into_iter()
-            .map(|(status, todo, info)| Task::new(status, todo, info))
-            .collect();
-        let state = ListState::default();
-        Self { items, state }
-    }
-}
-
-impl FromIterator<(Status, &'static str)> for Task {
+impl FromIterator<(Status, &'static str)> for TodoList {
     fn from_iter<I: IntoIterator<Item = (Status, &'static str)>>(iter: I) -> Self {
         let items = iter
             .into_iter()
-            .map(|(status, info)| SubTask::new(status, info))
+            .map(|(status, title)| Task::new(status, title))
             .collect();
         let state = ListState::default();
-        Self { state }
+        Self { items, state }
     }
 }

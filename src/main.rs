@@ -13,7 +13,7 @@ use ratatui::{
     text::Line,
     widgets::{
         Block, Borders, HighlightSpacing, List, ListItem, ListState, Paragraph, StatefulWidget,
-        Widget,
+        Widget, Padding, Wrap,
     },
     DefaultTerminal, Frame,
 };
@@ -91,8 +91,8 @@ impl App {
             }
             KeyCode::Char('m') => todo!(),
             KeyCode::Char('h') | KeyCode::Left => todo!(),
-            KeyCode::Char('j') | KeyCode::Down => todo!(),
-            KeyCode::Char('k') | KeyCode::Up => todo!(),
+            KeyCode::Char('j') | KeyCode::Down => self.select_next(),
+            KeyCode::Char('k') | KeyCode::Up => self.select_previous(),
             KeyCode::Char('l') | KeyCode::Right => todo!(),
             _ => {}
         }
@@ -104,6 +104,14 @@ impl App {
 
     fn add_task(&mut self) {
         todo!()
+    }
+
+    fn select_next(&mut self) {
+        self.list.state.select_next();
+    }
+
+    fn select_previous(&mut self) {
+        self.list.state.select_previous();
     }
 
     fn render_list(&mut self, area: Rect, buf: &mut Buffer) {
@@ -131,6 +139,33 @@ impl App {
         // same method name `render`.
         StatefulWidget::render(list, area, buf, &mut self.list.state);
     }
+
+    fn render_selected_item(&self, area: Rect, buf: &mut Buffer) {
+        // We get the info depending on the item's state.
+        let info = if let Some(i) = self.list.state.selected() {
+            match self.list.items[i].status {
+                Status::Completed => format!("✓  {}", self.list.items[i].title),
+                Status::Upcoming => format!("☐  {}", self.list.items[i].title),
+                Status::Active => format!("☐  {}", self.list.items[i].title),
+            }
+        } else {
+            "Nothing selected...".to_string()
+        };
+
+        // We show the list item's info under the list in this paragraph
+        let block = Block::new()
+            .title(Line::raw(" Selected Task ").centered())
+            .borders(Borders::ALL)
+            .border_set(border::LIGHT_TRIPLE_DASHED)
+            .padding(Padding::horizontal(1));
+
+        // We can now render the item info
+        Paragraph::new(info)
+            .block(block)
+            .fg(TEXT_FG_COLOR)
+            .wrap(Wrap { trim: false })
+            .render(area, buf);
+    }
 }
 
 impl Widget for &mut App {
@@ -154,12 +189,13 @@ impl Widget for &mut App {
             .border_set(border::THICK);
 
         let layout = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints(vec![Constraint::Percentage(100)])
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Percentage(90), Constraint::Percentage(10)])
             .split(Block::inner(&block, area));
 
         block.render(area, buf);
         self.render_list(layout[0], buf);
+        self.render_selected_item(layout[1], buf);
     }
 }
 

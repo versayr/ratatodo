@@ -12,13 +12,13 @@ use ratatui::{
     symbols::border,
     text::Line,
     widgets::{
-        Block, Borders, HighlightSpacing, List, ListItem, ListState, Paragraph, StatefulWidget,
-        Widget, Padding, Wrap,
+        Block, Borders, BorderType, HighlightSpacing, List, ListItem, ListState, Padding, Paragraph,
+        StatefulWidget, Widget, Wrap,
     },
     DefaultTerminal, Frame,
 };
 
-const SELECTED_STYLE: Style = Style::new().bg(SLATE.c800).add_modifier(Modifier::BOLD);
+const SELECTED_STYLE: Style = Style::new().add_modifier(Modifier::BOLD);
 const TEXT_FG_COLOR: Color = SLATE.c200;
 const COMPLETED_TEXT_FG_COLOR: Color = GREEN.c300;
 
@@ -89,11 +89,13 @@ impl App {
             KeyCode::Char('n') | KeyCode::Char('i') | KeyCode::Char('a') | KeyCode::Char('o') => {
                 self.add_task()
             }
-            KeyCode::Char('m') => todo!(),
-            KeyCode::Char('h') | KeyCode::Left => todo!(),
             KeyCode::Char('j') | KeyCode::Down => self.select_next(),
             KeyCode::Char('k') | KeyCode::Up => self.select_previous(),
-            KeyCode::Char('l') | KeyCode::Right => todo!(),
+            KeyCode::Char('l')
+            | KeyCode::Right
+            | KeyCode::Tab
+            | KeyCode::Left
+            | KeyCode::Char('t') => self.toggle_status(),
             _ => {}
         }
     }
@@ -114,6 +116,16 @@ impl App {
         self.list.state.select_previous();
     }
 
+    fn toggle_status(&mut self) {
+        if let Some(i) = self.list.state.selected() {
+            self.list.items[i].status = match self.list.items[i].status {
+                Status::Upcoming => Status::Active,
+                Status::Active => Status::Completed,
+                Status::Completed => Status::Upcoming,
+            }
+        }
+    }
+
     fn render_list(&mut self, area: Rect, buf: &mut Buffer) {
         let block = Block::new()
             .title(Line::raw(" ").centered())
@@ -125,7 +137,7 @@ impl App {
             .list
             .items
             .iter()
-            .map(|todo_item| ListItem::from(todo_item))
+            .map(|todo_item| { ListItem::from(todo_item) })
             .collect();
 
         // Create a List from all list items and highlight the currently selected one
@@ -144,9 +156,9 @@ impl App {
         // We get the info depending on the item's state.
         let info = if let Some(i) = self.list.state.selected() {
             match self.list.items[i].status {
-                Status::Completed => format!("✓  {}", self.list.items[i].title),
-                Status::Upcoming => format!("☐  {}", self.list.items[i].title),
+                Status::Upcoming => format!("_  {}", self.list.items[i].title),
                 Status::Active => format!("☐  {}", self.list.items[i].title),
+                Status::Completed => format!("✓  {}", self.list.items[i].title),
             }
         } else {
             "Nothing selected...".to_string()
@@ -186,11 +198,11 @@ impl Widget for &mut App {
         let block = Block::bordered()
             .title(title.centered())
             .title_bottom(instructions.centered())
-            .border_set(border::THICK);
+            .border_type(BorderType::Rounded);
 
         let layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Percentage(90), Constraint::Percentage(10)])
+            .constraints(vec![Constraint::Fill(1), Constraint::Length(3)])
             .split(Block::inner(&block, area));
 
         block.render(area, buf);
@@ -211,7 +223,7 @@ impl Task {
 impl From<&Task> for ListItem<'_> {
     fn from(value: &Task) -> Self {
         let line = match value.status {
-            Status::Upcoming => Line::styled(format!(" ☐ {}", value.title), TEXT_FG_COLOR),
+            Status::Upcoming => Line::styled(format!(" _ {}", value.title), TEXT_FG_COLOR),
             Status::Active => Line::styled(format!(" ☐ {}", value.title), TEXT_FG_COLOR),
             Status::Completed => {
                 Line::styled(format!(" ✓ {}", value.title), COMPLETED_TEXT_FG_COLOR)

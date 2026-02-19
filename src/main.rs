@@ -36,9 +36,9 @@ fn main() -> io::Result<()> {
 pub struct App {
     exit: bool,
     list: TodoList,
-    mode: Mode, 
+    mode: Mode,
     currently_editing: CurrentlyEditing,
-    title_field: String, 
+    title_field: String,
     info_field: String,
 }
 
@@ -63,7 +63,7 @@ enum Status {
 
 enum CurrentlyEditing {
     Title,
-    Info
+    Info,
 }
 
 enum Mode {
@@ -104,33 +104,83 @@ impl App {
             Mode::View => {
                 match key_event.code {
                     KeyCode::Char('q') => self.exit(),
-                    KeyCode::Char('n') | KeyCode::Char('i') | KeyCode::Char('a') | KeyCode::Char('o') => {
+                    KeyCode::Char('n')
+                    | KeyCode::Char('i')
+                    | KeyCode::Char('a')
+                    | KeyCode::Char('o') => {
                         self.mode = Mode::Edit;
                     }
                     KeyCode::Char('j') | KeyCode::Down => self.list.state.select_next(),
                     KeyCode::Char('k') | KeyCode::Up => self.list.state.select_previous(),
                     KeyCode::Char('h') => self.mode = Mode::Help,
+                    KeyCode::Char('e') => self.edit_task(), // edit selected task
                     KeyCode::Char('l')
-                        | KeyCode::Right
-                        | KeyCode::Tab
-                        | KeyCode::Left
-                        | KeyCode::Char('t') => self.toggle_status(),
+                    | KeyCode::Right
+                    | KeyCode::Tab
+                    | KeyCode::Left
+                    | KeyCode::Char('t') => self.toggle_status(),
                     _ => {}
                 }
-            },
+            }
             Mode::Edit => {
                 match key_event.code {
                     KeyCode::Esc => {
                         // TODO handle discarding changes
                         self.mode = Mode::View;
+                    }
+                    KeyCode::Tab | KeyCode::Up | KeyCode::Down => self.toggle_editing_field(),
+                    KeyCode::Backspace => match self.currently_editing {
+                        CurrentlyEditing::Title => {
+                            self.title_field.pop();
+                        }
+                        CurrentlyEditing::Info => {
+                            self.info_field.pop();
+                        }
                     },
-                    KeyCode::Tab | KeyCode::Up | KeyCode::Down => todo!(),
+                    KeyCode::Enter => match self.currently_editing {
+                        CurrentlyEditing::Title => self.currently_editing = CurrentlyEditing::Info,
+                        CurrentlyEditing::Info => {
+                            self.new_task();
+                            self.mode = Mode::View;
+                        }
+                    },
+                    KeyCode::Char(value) => match self.currently_editing {
+                        CurrentlyEditing::Title => {
+                            self.title_field.push(value);
+                        }
+                        CurrentlyEditing::Info => {
+                            self.info_field.push(value);
+                        }
+                    },
                     _ => {}
                 }
-            }, 
-            Mode::Help => {
-                if key_event.code == KeyCode::Esc { self.mode = Mode::View }
             }
+            Mode::Help => {
+                if key_event.code == KeyCode::Esc {
+                    self.mode = Mode::View
+                }
+            }
+        }
+    }
+
+    fn new_task(&mut self) {
+        if !self.title_field.is_empty() {
+            self.list.items.push(Task::new(
+                Status::Upcoming,
+                &self.title_field,
+                &self.info_field,
+            ));
+            self.title_field = "".into();
+            self.info_field = "".into();
+            self.currently_editing = CurrentlyEditing::Title;
+        }
+    }
+
+    fn edit_task(&mut self) {
+        if let Some(i) = self.list.state.selected() {
+            self.title_field = self.list.items[i].title.clone();
+            self.info_field = self.list.items[i].info.clone();
+            self.mode = Mode::Edit;
         }
     }
 
@@ -148,12 +198,14 @@ impl App {
         }
     }
 
-    fn render_list(&mut self, area: Rect, buf: &mut Buffer) {
-        let block = Block::new()
-            .title(Line::raw(" ").centered())
-            .borders(Borders::TOP)
-            .border_set(border::EMPTY);
+    fn toggle_editing_field(&mut self) {
+        match self.currently_editing {
+            CurrentlyEditing::Title => self.currently_editing = CurrentlyEditing::Info,
+            CurrentlyEditing::Info => self.currently_editing = CurrentlyEditing::Title,
+        }
+    }
 
+    fn render_list(&mut self, area: Rect, buf: &mut Buffer) {
         let items: Vec<ListItem> = self
             .list
             .items
@@ -163,7 +215,6 @@ impl App {
 
         // Create a List from all list items and highlight the currently selected one
         let list = List::new(items)
-            .block(block)
             .highlight_style(SELECTED_STYLE)
             .highlight_symbol(">")
             .highlight_spacing(HighlightSpacing::Always);
@@ -225,6 +276,9 @@ impl App {
             "N".blue().bold(),
             "]ew Task".into(),
             " [".into(),
+            "E".blue().bold(),
+            "]dit".into(),
+            " [".into(),
             "H".blue().bold(),
             "]elp".into(),
             " [".into(),
@@ -233,8 +287,9 @@ impl App {
         ]);
 
         let block = Block::bordered()
-            .title(title.centered())
+            .title(title)
             .title_bottom(instructions.centered())
+            .padding(Padding::vertical(1))
             .border_type(BorderType::Rounded);
 
         let layout = Layout::default()
@@ -255,34 +310,54 @@ impl App {
             "] Discard Changes".into(),
             " [".into(),
             "Tab".blue().bold(),
-            "] Switch Field ".into(),
+            "] Switch Field".into(),
+            " [".into(),
+            "Enter".blue().bold(),
+            "] Submit".into(),
         ]);
 
         let block = Block::bordered()
-            .title(title.centered())
+            .title(title)
             .title_bottom(instructions.centered())
-            .border_type(BorderType::Rounded);
-
-        let title_block = Block::bordered()
-            .title(Line::raw(" Task Title "))
-            .border_type(BorderType::Rounded);
-
-        let info_block = Block::bordered()
-            .title(Line::raw(" Task Details "))
+            .padding(Padding::uniform(1))
             .border_type(BorderType::Rounded);
 
         let layout = Layout::default()
             .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
+            .constraints(vec![Constraint::Percentage(30), Constraint::Percentage(70)])
             .split(Block::inner(&block, area));
 
-        // TODO highlight currently selected block 
-        // TODO render typed task title/info in blocks 
-        // TODO set up editing existing tasks
+        let title_border_style = match self.currently_editing {
+            CurrentlyEditing::Title => BorderType::Double,
+            CurrentlyEditing::Info => BorderType::Plain,
+        };
+
+        let info_border_style = match self.currently_editing {
+            CurrentlyEditing::Info => BorderType::Double,
+            CurrentlyEditing::Title => BorderType::Plain,
+        };
+
+        let title_block = Block::bordered()
+            .title(Line::raw(" Task Title "))
+            .border_type(title_border_style)
+            .padding(Padding::uniform(1));
+
+        let info_block = Block::bordered()
+            .title(Line::raw(" Task Details "))
+            .border_type(info_border_style)
+            .padding(Padding::uniform(1));
+
+        let title_field = Paragraph::new(self.title_field.clone())
+            .wrap(Wrap { trim: true })
+            .block(title_block);
+
+        let info_field = Paragraph::new(self.info_field.clone())
+            .wrap(Wrap { trim: true })
+            .block(info_block);
 
         block.render(area, buf);
-        title_block.render(layout[0], buf);
-        info_block.render(layout[1], buf);
+        title_field.render(layout[0], buf);
+        info_field.render(layout[1], buf);
     }
 
     fn render_help_mode(&mut self, area: Rect, buf: &mut Buffer) {
@@ -327,19 +402,7 @@ impl Default for App {
     fn default() -> Self {
         Self {
             exit: false,
-            list: TodoList::from_iter([
-                (
-                    Status::Upcoming,
-                    "Write down some tasks",
-                    "Use this todo app",
-                ),
-                (Status::Active, "Relax", "You've been doing good work"),
-                (
-                    Status::Completed,
-                    "Get list items rendering",
-                    "Task lists need items rendering",
-                ),
-            ]),
+            list: TodoList::from_iter([]),
             mode: Mode::View,
             title_field: "".into(),
             info_field: "".into(),

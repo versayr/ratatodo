@@ -37,6 +37,7 @@ pub struct App {
     exit: bool,
     list: TodoList,
     mode: Mode, 
+    currently_editing: CurrentlyEditing,
     title_field: String, 
     info_field: String,
 }
@@ -58,6 +59,11 @@ enum Status {
     Upcoming,
     Active,
     Completed,
+}
+
+enum CurrentlyEditing {
+    Title,
+    Info
 }
 
 enum Mode {
@@ -93,19 +99,33 @@ impl App {
     }
 
     fn handle_key_events(&mut self, key_event: KeyEvent) {
-        match key_event.code {
-            KeyCode::Char('q') => self.exit(),
-            KeyCode::Char('n') | KeyCode::Char('i') | KeyCode::Char('a') | KeyCode::Char('o') => {
-                self.mode = Mode::Edit;
+        match self.mode {
+            Mode::View => {
+                match key_event.code {
+                    KeyCode::Char('q') => self.exit(),
+                    KeyCode::Char('n') | KeyCode::Char('i') | KeyCode::Char('a') | KeyCode::Char('o') => {
+                        self.mode = Mode::Edit;
+                    }
+                    KeyCode::Char('j') | KeyCode::Down => self.list.state.select_next(),
+                    KeyCode::Char('k') | KeyCode::Up => self.list.state.select_previous(),
+                    KeyCode::Char('l')
+                        | KeyCode::Right
+                        | KeyCode::Tab
+                        | KeyCode::Left
+                        | KeyCode::Char('t') => self.toggle_status(),
+                    _ => {}
+                }
+            },
+            Mode::Edit => {
+                match key_event.code {
+                    KeyCode::Esc => {
+                        // TODO handle discarding changes
+                        self.mode = Mode::View;
+                    },
+                    KeyCode::Tab | KeyCode::Up | KeyCode::Down => todo!(),
+                    _ => {}
+                }
             }
-            KeyCode::Char('j') | KeyCode::Down => self.list.state.select_next(),
-            KeyCode::Char('k') | KeyCode::Up => self.list.state.select_previous(),
-            KeyCode::Char('l')
-            | KeyCode::Right
-            | KeyCode::Tab
-            | KeyCode::Left
-            | KeyCode::Char('t') => self.toggle_status(),
-            _ => {}
         }
     }
 
@@ -129,7 +149,6 @@ impl App {
             .borders(Borders::TOP)
             .border_set(border::EMPTY);
 
-        // Iterate through all elements in the `items` and stylize them.
         let items: Vec<ListItem> = self
             .list
             .items
@@ -144,8 +163,6 @@ impl App {
             .highlight_symbol(">")
             .highlight_spacing(HighlightSpacing::Always);
 
-        // We need to disambiguate this trait method as both `Widget` and `StatefulWidget` share the
-        // same method name `render`.
         StatefulWidget::render(list, area, buf, &mut self.list.state);
     }
 
@@ -226,7 +243,41 @@ impl App {
     }
 
     fn render_edit_mode(&mut self, area: Rect, buf: &mut Buffer) {
-        Line::raw("Edit mode").render(area, buf);
+        let title = Line::from(" Ratatodo ".bold());
+        let instructions = Line::from(vec![
+            " [".into(),
+            "Esc".blue().bold(),
+            "] Discard Changes".into(),
+            " [".into(),
+            "Tab".blue().bold(),
+            "] Switch Field ".into(),
+        ]);
+
+        let block = Block::bordered()
+            .title(title.centered())
+            .title_bottom(instructions.centered())
+            .border_type(BorderType::Rounded);
+
+        let title_block = Block::bordered()
+            .title(Line::raw(" Task Title "))
+            .border_type(BorderType::Rounded);
+
+        let info_block = Block::bordered()
+            .title(Line::raw(" Task Details "))
+            .border_type(BorderType::Rounded);
+
+        let layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(Block::inner(&block, area));
+
+        // TODO highlight currently selected block 
+        // TODO render typed task title/info in blocks 
+        // TODO set up editing existing tasks
+
+        block.render(area, buf);
+        title_block.render(layout[0], buf);
+        info_block.render(layout[1], buf);
     }
 }
 
@@ -282,6 +333,7 @@ impl Default for App {
             mode: Mode::View,
             title_field: "".into(),
             info_field: "".into(),
+            currently_editing: CurrentlyEditing::Title,
         }
     }
 }

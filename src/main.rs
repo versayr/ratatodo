@@ -12,8 +12,8 @@ use ratatui::{
     symbols::border,
     text::Line,
     widgets::{
-        Block, Borders, BorderType, HighlightSpacing, List, ListItem, ListState, Padding, Paragraph,
-        StatefulWidget, Widget, Wrap,
+        Block, BorderType, Borders, HighlightSpacing, List, ListItem, ListState, Padding,
+        Paragraph, StatefulWidget, Widget, Wrap,
     },
     DefaultTerminal, Frame,
 };
@@ -36,6 +36,9 @@ fn main() -> io::Result<()> {
 pub struct App {
     exit: bool,
     list: TodoList,
+    mode: Mode, 
+    title_field: String, 
+    info_field: String,
 }
 
 struct TodoList {
@@ -46,6 +49,7 @@ struct TodoList {
 #[derive(Debug)]
 struct Task {
     title: String,
+    info: String,
     status: Status,
 }
 
@@ -54,6 +58,11 @@ enum Status {
     Upcoming,
     Active,
     Completed,
+}
+
+enum Mode {
+    View,
+    Edit,
 }
 
 impl App {
@@ -87,10 +96,10 @@ impl App {
         match key_event.code {
             KeyCode::Char('q') => self.exit(),
             KeyCode::Char('n') | KeyCode::Char('i') | KeyCode::Char('a') | KeyCode::Char('o') => {
-                self.add_task()
+                self.mode = Mode::Edit;
             }
-            KeyCode::Char('j') | KeyCode::Down => self.select_next(),
-            KeyCode::Char('k') | KeyCode::Up => self.select_previous(),
+            KeyCode::Char('j') | KeyCode::Down => self.list.state.select_next(),
+            KeyCode::Char('k') | KeyCode::Up => self.list.state.select_previous(),
             KeyCode::Char('l')
             | KeyCode::Right
             | KeyCode::Tab
@@ -102,18 +111,6 @@ impl App {
 
     fn exit(&mut self) {
         self.exit = true;
-    }
-
-    fn add_task(&mut self) {
-        todo!()
-    }
-
-    fn select_next(&mut self) {
-        self.list.state.select_next();
-    }
-
-    fn select_previous(&mut self) {
-        self.list.state.select_previous();
     }
 
     fn toggle_status(&mut self) {
@@ -137,7 +134,7 @@ impl App {
             .list
             .items
             .iter()
-            .map(|todo_item| { ListItem::from(todo_item) })
+            .map(|todo_item| ListItem::from(todo_item))
             .collect();
 
         // Create a List from all list items and highlight the currently selected one
@@ -153,35 +150,53 @@ impl App {
     }
 
     fn render_selected_item(&self, area: Rect, buf: &mut Buffer) {
+        let mut lines: Vec<Line<'_>> = vec![];
         // We get the info depending on the item's state.
-        let info = if let Some(i) = self.list.state.selected() {
+        let task = if let Some(i) = self.list.state.selected() {
             match self.list.items[i].status {
-                Status::Upcoming => format!("_  {}", self.list.items[i].title),
-                Status::Active => format!("☐  {}", self.list.items[i].title),
-                Status::Completed => format!("✓  {}", self.list.items[i].title),
+                Status::Upcoming => format!("{} ", self.list.items[i].title),
+                Status::Active => format!("{} ", self.list.items[i].title),
+                Status::Completed => format!("{} ", self.list.items[i].title),
             }
         } else {
-            "Nothing selected...".to_string()
+            " Nothing selected... ".to_string()
         };
+
+        let info = if let Some(i) = self.list.state.selected() {
+            &self.list.items[i].info
+        } else {
+            ""
+        };
+
+        let task_status = if let Some(i) = self.list.state.selected() {
+            match self.list.items[i].status {
+                Status::Upcoming => "> Status - Upcoming ",
+                Status::Active => "> Status - Active ",
+                Status::Completed => "> Status - Completed ",
+            }
+        } else {
+            ""
+        };
+
+        lines.push(Line::from(task));
+        lines.push(Line::from(info));
 
         // We show the list item's info under the list in this paragraph
         let block = Block::new()
-            .title(Line::raw(" Selected Task ").centered())
-            .borders(Borders::ALL)
+            .title(Line::from(task_status).bold())
+            .borders(Borders::TOP)
             .border_set(border::LIGHT_TRIPLE_DASHED)
             .padding(Padding::horizontal(1));
 
         // We can now render the item info
-        Paragraph::new(info)
+        Paragraph::new(lines)
             .block(block)
             .fg(TEXT_FG_COLOR)
             .wrap(Wrap { trim: false })
             .render(area, buf);
     }
-}
 
-impl Widget for &mut App {
-    fn render(self, area: Rect, buf: &mut Buffer) {
+    fn render_view_mode(&mut self, area: Rect, buf: &mut Buffer) {
         let title = Line::from(" Ratatodo ".bold());
         let instructions = Line::from(vec![
             " [".into(),
@@ -209,13 +224,27 @@ impl Widget for &mut App {
         self.render_list(layout[0], buf);
         self.render_selected_item(layout[1], buf);
     }
+
+    fn render_edit_mode(&mut self, area: Rect, buf: &mut Buffer) {
+        Line::raw("Edit mode").render(area, buf);
+    }
+}
+
+impl Widget for &mut App {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        match self.mode {
+            Mode::View => self.render_view_mode(area, buf),
+            Mode::Edit => self.render_edit_mode(area, buf),
+        }
+    }
 }
 
 impl Task {
-    fn new(status: Status, title: &str) -> Self {
+    fn new(status: Status, title: &str, info: &str) -> Self {
         Self {
             status,
             title: title.to_string(),
+            info: info.to_string(),
         }
     }
 }
@@ -238,19 +267,30 @@ impl Default for App {
         Self {
             exit: false,
             list: TodoList::from_iter([
-                (Status::Upcoming, "Write down some tasks"),
-                (Status::Active, "Relax"),
-                (Status::Completed, "Get list items rendering"),
+                (
+                    Status::Upcoming,
+                    "Write down some tasks",
+                    "Use this todo app",
+                ),
+                (Status::Active, "Relax", "You've been doing good work"),
+                (
+                    Status::Completed,
+                    "Get list items rendering",
+                    "Task lists need items rendering",
+                ),
             ]),
+            mode: Mode::View,
+            title_field: "".into(),
+            info_field: "".into(),
         }
     }
 }
 
-impl FromIterator<(Status, &'static str)> for TodoList {
-    fn from_iter<I: IntoIterator<Item = (Status, &'static str)>>(iter: I) -> Self {
+impl FromIterator<(Status, &'static str, &'static str)> for TodoList {
+    fn from_iter<I: IntoIterator<Item = (Status, &'static str, &'static str)>>(iter: I) -> Self {
         let items = iter
             .into_iter()
-            .map(|(status, title)| Task::new(status, title))
+            .map(|(status, title, info)| Task::new(status, title, info))
             .collect();
         let state = ListState::default();
         Self { items, state }

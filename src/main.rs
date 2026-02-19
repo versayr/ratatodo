@@ -69,6 +69,7 @@ enum CurrentlyEditing {
 enum Mode {
     View,
     Edit,
+    Help,
 }
 
 impl App {
@@ -108,6 +109,7 @@ impl App {
                     }
                     KeyCode::Char('j') | KeyCode::Down => self.list.state.select_next(),
                     KeyCode::Char('k') | KeyCode::Up => self.list.state.select_previous(),
+                    KeyCode::Char('h') => self.mode = Mode::Help,
                     KeyCode::Char('l')
                         | KeyCode::Right
                         | KeyCode::Tab
@@ -125,6 +127,9 @@ impl App {
                     KeyCode::Tab | KeyCode::Up | KeyCode::Down => todo!(),
                     _ => {}
                 }
+            }, 
+            Mode::Help => {
+                if key_event.code == KeyCode::Esc { self.mode = Mode::View }
             }
         }
     }
@@ -220,8 +225,8 @@ impl App {
             "N".blue().bold(),
             "]ew Task".into(),
             " [".into(),
-            "M".blue().bold(),
-            "]ark Completed".into(),
+            "H".blue().bold(),
+            "]elp".into(),
             " [".into(),
             "Q".blue().bold(),
             "]uit ".into(),
@@ -279,6 +284,10 @@ impl App {
         title_block.render(layout[0], buf);
         info_block.render(layout[1], buf);
     }
+
+    fn render_help_mode(&mut self, area: Rect, buf: &mut Buffer) {
+        Line::raw("Help Screen").render(area, buf);
+    }
 }
 
 impl Widget for &mut App {
@@ -286,6 +295,7 @@ impl Widget for &mut App {
         match self.mode {
             Mode::View => self.render_view_mode(area, buf),
             Mode::Edit => self.render_edit_mode(area, buf),
+            Mode::Help => self.render_help_mode(area, buf),
         }
     }
 }

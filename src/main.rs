@@ -118,7 +118,8 @@ impl App {
                     KeyCode::Char('j') | KeyCode::Down => self.list.state.select_next(),
                     KeyCode::Char('k') | KeyCode::Up => self.list.state.select_previous(),
                     KeyCode::Char('h') => self.mode = Mode::Help,
-                    KeyCode::Char('e') => self.edit_task(), // edit selected task
+                    KeyCode::Char('e') => self.edit_task(),
+                    KeyCode::Delete | KeyCode::Backspace | KeyCode::Char('d') => self.delete_task(),
                     KeyCode::Char('l')
                     | KeyCode::Right
                     | KeyCode::Tab
@@ -188,6 +189,12 @@ impl App {
             self.info_field = self.list.items[i].info.clone();
             self.editing_existing_item = Index { index: Some(i) };
             self.mode = Mode::Edit;
+        }
+    }
+
+    fn delete_task(&mut self) {
+        if let Some(i) = self.list.state.selected() {
+            self.list.items.remove(i);
         }
     }
 

@@ -1,4 +1,4 @@
-use std::{io, vec};
+use std::{io, option::Option, vec};
 
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 
@@ -38,6 +38,7 @@ pub struct App {
     list: TodoList,
     mode: Mode,
     currently_editing: CurrentlyEditing,
+    editing_existing_item: Index,
     title_field: String,
     info_field: String,
 }
@@ -52,6 +53,10 @@ struct Task {
     title: String,
     info: String,
     status: Status,
+}
+
+struct Index {
+    index: Option<usize>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -122,39 +127,34 @@ impl App {
                     _ => {}
                 }
             }
-            Mode::Edit => {
-                match key_event.code {
-                    KeyCode::Esc => {
-                        // TODO handle discarding changes
+            Mode::Edit => match key_event.code {
+                KeyCode::Esc => self.mode = Mode::View,
+                KeyCode::Tab | KeyCode::Up | KeyCode::Down => self.toggle_editing_field(),
+                KeyCode::Backspace => match self.currently_editing {
+                    CurrentlyEditing::Title => {
+                        self.title_field.pop();
+                    }
+                    CurrentlyEditing::Info => {
+                        self.info_field.pop();
+                    }
+                },
+                KeyCode::Enter => match self.currently_editing {
+                    CurrentlyEditing::Title => self.currently_editing = CurrentlyEditing::Info,
+                    CurrentlyEditing::Info => {
+                        self.new_task();
                         self.mode = Mode::View;
                     }
-                    KeyCode::Tab | KeyCode::Up | KeyCode::Down => self.toggle_editing_field(),
-                    KeyCode::Backspace => match self.currently_editing {
-                        CurrentlyEditing::Title => {
-                            self.title_field.pop();
-                        }
-                        CurrentlyEditing::Info => {
-                            self.info_field.pop();
-                        }
-                    },
-                    KeyCode::Enter => match self.currently_editing {
-                        CurrentlyEditing::Title => self.currently_editing = CurrentlyEditing::Info,
-                        CurrentlyEditing::Info => {
-                            self.new_task();
-                            self.mode = Mode::View;
-                        }
-                    },
-                    KeyCode::Char(value) => match self.currently_editing {
-                        CurrentlyEditing::Title => {
-                            self.title_field.push(value);
-                        }
-                        CurrentlyEditing::Info => {
-                            self.info_field.push(value);
-                        }
-                    },
-                    _ => {}
-                }
-            }
+                },
+                KeyCode::Char(value) => match self.currently_editing {
+                    CurrentlyEditing::Title => {
+                        self.title_field.push(value);
+                    }
+                    CurrentlyEditing::Info => {
+                        self.info_field.push(value);
+                    }
+                },
+                _ => {}
+            },
             Mode::Help => {
                 if key_event.code == KeyCode::Esc {
                     self.mode = Mode::View
@@ -165,14 +165,20 @@ impl App {
 
     fn new_task(&mut self) {
         if !self.title_field.is_empty() {
-            self.list.items.push(Task::new(
-                Status::Upcoming,
-                &self.title_field,
-                &self.info_field,
-            ));
+            if let Some(i) = self.editing_existing_item.index {
+                self.list.items[i].title = self.title_field.clone();
+                self.list.items[i].info = self.info_field.clone();
+            } else {
+                self.list.items.push(Task::new(
+                    Status::Upcoming,
+                    &self.title_field,
+                    &self.info_field,
+                ));
+            }
             self.title_field = "".into();
             self.info_field = "".into();
             self.currently_editing = CurrentlyEditing::Title;
+            self.editing_existing_item = Index { index: None };
         }
     }
 
@@ -180,6 +186,7 @@ impl App {
         if let Some(i) = self.list.state.selected() {
             self.title_field = self.list.items[i].title.clone();
             self.info_field = self.list.items[i].info.clone();
+            self.editing_existing_item = Index { index: Some(i) };
             self.mode = Mode::Edit;
         }
     }
@@ -407,6 +414,7 @@ impl Default for App {
             title_field: "".into(),
             info_field: "".into(),
             currently_editing: CurrentlyEditing::Title,
+            editing_existing_item: Index { index: None },
         }
     }
 }

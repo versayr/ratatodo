@@ -1,6 +1,8 @@
 use std::io;
-mod app;
 use crate::app::App;
+
+mod app;
+mod ui;
 
 fn main() -> io::Result<()> {
     let mut terminal = ratatui::init();

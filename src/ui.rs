@@ -1,37 +1,17 @@
+use crate::app::{App, CurrentlyEditing, Status};
 use ratatui::{
     buffer::Buffer,
-    layout::{
-        Constraint,
-        Direction,
-        Layout,
-        Rect,
-    },
-    style::{Style, Stylize, Modifier},
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Modifier, Style, Stylize},
     symbols::border,
     text::Line,
     widgets::{
-        Block,
-        Borders,
-        BorderType,
-        HighlightSpacing,
-        List,
-        ListItem,
-        Padding,
-        Paragraph,
-        StatefulWidget,
-        Widget,
-        Wrap,
+        Block, BorderType, Borders, HighlightSpacing, List, ListItem, Padding, Paragraph,
+        StatefulWidget, Widget, Wrap,
     },
-};
-use crate::app::{
-    App,
-    CurrentlyEditing,
-    Status,
 };
 
 const SELECTED_STYLE: Style = Style::new().add_modifier(Modifier::BOLD);
-// const COMPLETED_TEXT_FG_COLOR: Color = GREEN.c300;
-
 
 impl App {
     pub fn render_view_mode(&mut self, area: Rect, buf: &mut Buffer) {
@@ -137,7 +117,6 @@ impl App {
             .map(|todo_item| ListItem::from(todo_item))
             .collect();
 
-        // Create a List from all list items and highlight the currently selected one
         let list = List::new(items)
             .highlight_style(SELECTED_STYLE)
             .highlight_symbol(">")
@@ -148,7 +127,6 @@ impl App {
 
     fn render_selected_item(&self, area: Rect, buf: &mut Buffer) {
         let mut lines: Vec<Line<'_>> = vec![];
-        // We get the info depending on the item's state.
         let task = if let Some(i) = self.list.state.selected() {
             match self.list.items[i].mode {
                 Status::Upcoming => format!("{} ", self.list.items[i].title),
@@ -190,7 +168,5 @@ impl App {
             .block(block)
             .wrap(Wrap { trim: false })
             .render(area, buf);
-        }
+    }
 }
-
-

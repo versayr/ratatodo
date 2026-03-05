@@ -92,54 +92,8 @@ impl App {
 
     fn handle_key_events(&mut self, key_event: KeyEvent) {
         match self.mode {
-            Mode::View => match key_event.code {
-                KeyCode::Char('q') => self.exit(),
-                KeyCode::Char('n')
-                | KeyCode::Char('i')
-                | KeyCode::Char('a')
-                | KeyCode::Char('o') => {
-                    self.mode = Mode::Edit;
-                }
-                KeyCode::Char('j') | KeyCode::Down => self.list.state.select_next(),
-                KeyCode::Char('k') | KeyCode::Up => self.list.state.select_previous(),
-                KeyCode::Char('h') => self.mode = Mode::Help,
-                KeyCode::Char('e') => self.edit_task(),
-                KeyCode::Delete | KeyCode::Backspace | KeyCode::Char('d') => self.delete_task(),
-                KeyCode::Char('l')
-                | KeyCode::Right
-                | KeyCode::Tab
-                | KeyCode::Left
-                | KeyCode::Char('t') => self.toggle_mode(),
-                _ => {}
-            },
-            Mode::Edit => match key_event.code {
-                KeyCode::Esc => self.mode = Mode::View,
-                KeyCode::Tab | KeyCode::Up | KeyCode::Down => self.toggle_editing_field(),
-                KeyCode::Backspace => match self.currently_editing {
-                    CurrentlyEditing::Title => {
-                        self.title_field.pop();
-                    }
-                    CurrentlyEditing::Info => {
-                        self.info_field.pop();
-                    }
-                },
-                KeyCode::Enter => match self.currently_editing {
-                    CurrentlyEditing::Title => self.currently_editing = CurrentlyEditing::Info,
-                    CurrentlyEditing::Info => {
-                        self.new_task();
-                        self.mode = Mode::View;
-                    }
-                },
-                KeyCode::Char(value) => match self.currently_editing {
-                    CurrentlyEditing::Title => {
-                        self.title_field.push(value);
-                    }
-                    CurrentlyEditing::Info => {
-                        self.info_field.push(value);
-                    }
-                },
-                _ => {}
-            },
+            Mode::View => self.handle_view_input(key_event),
+            Mode::Edit => self.handle_edit_input(key_event),
             Mode::Help => {
                 if key_event.code == KeyCode::Esc {
                     self.mode = Mode::View
@@ -200,6 +154,60 @@ impl App {
         match self.currently_editing {
             CurrentlyEditing::Title => self.currently_editing = CurrentlyEditing::Info,
             CurrentlyEditing::Info => self.currently_editing = CurrentlyEditing::Title,
+        }
+    }
+
+    fn handle_view_input(&mut self, key_event: KeyEvent) {
+        match key_event.code {
+            KeyCode::Char('q') => self.exit(),
+            KeyCode::Char('n')
+                | KeyCode::Char('i')
+                | KeyCode::Char('a')
+                | KeyCode::Char('o') => {
+                    self.mode = Mode::Edit;
+                }
+            KeyCode::Char('j') | KeyCode::Down => self.list.state.select_next(),
+            KeyCode::Char('k') | KeyCode::Up => self.list.state.select_previous(),
+            KeyCode::Char('h') => self.mode = Mode::Help,
+            KeyCode::Char('e') => self.edit_task(),
+            KeyCode::Delete | KeyCode::Backspace | KeyCode::Char('d') => self.delete_task(),
+            KeyCode::Char('l')
+                | KeyCode::Right
+                | KeyCode::Tab
+                | KeyCode::Left
+                | KeyCode::Char('t') => self.toggle_mode(),
+            _ => {}
+        }
+    }
+
+    fn handle_edit_input(&mut self, key_event: KeyEvent) {
+        match key_event.code {
+            KeyCode::Esc => self.mode = Mode::View,
+            KeyCode::Tab | KeyCode::Up | KeyCode::Down => self.toggle_editing_field(),
+            KeyCode::Backspace => match self.currently_editing {
+                CurrentlyEditing::Title => {
+                    self.title_field.pop();
+                }
+                CurrentlyEditing::Info => {
+                    self.info_field.pop();
+                }
+            },
+            KeyCode::Enter => match self.currently_editing {
+                CurrentlyEditing::Title => self.currently_editing = CurrentlyEditing::Info,
+                CurrentlyEditing::Info => {
+                    self.new_task();
+                    self.mode = Mode::View;
+                }
+            },
+            KeyCode::Char(value) => match self.currently_editing {
+                CurrentlyEditing::Title => {
+                    self.title_field.push(value);
+                }
+                CurrentlyEditing::Info => {
+                    self.info_field.push(value);
+                }
+            },
+            _ => {}
         }
     }
 }

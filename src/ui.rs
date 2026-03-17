@@ -4,7 +4,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style, Stylize},
     symbols::border,
-    text::Line,
+    text::{Line, Span},
     widgets::{
         Block, BorderType, Borders, HighlightSpacing, List, ListItem, Padding, Paragraph,
         StatefulWidget, Widget, Wrap,
@@ -92,13 +92,29 @@ impl App {
             .border_type(info_border_style)
             .padding(Padding::uniform(1));
 
-        let title_field = Paragraph::new(self.title_field.clone())
-            .wrap(Wrap { trim: true })
-            .block(title_block);
+        let title_cursor_style = match self.currently_editing {
+            CurrentlyEditing::Title => Style::reversed(Style::default()),
+            CurrentlyEditing::Info => Style::default(),
+        };
 
-        let info_field = Paragraph::new(self.info_field.clone())
-            .wrap(Wrap { trim: true })
-            .block(info_block);
+        let info_cursor_style = match self.currently_editing {
+            CurrentlyEditing::Info => Style::reversed(Style::default()),
+            CurrentlyEditing::Title => Style::default(),
+        };
+
+        let title_field = Paragraph::new(Line::from(vec![
+            Span::raw(self.title_field.clone()),
+            Span::styled(" ", title_cursor_style),
+        ]))
+        .wrap(Wrap { trim: true })
+        .block(title_block);
+
+        let info_field = Paragraph::new(Line::from(vec![
+            Span::raw(self.info_field.clone()),
+            Span::styled(" ", info_cursor_style),
+        ]))
+        .wrap(Wrap { trim: true })
+        .block(info_block);
 
         block.render(area, buf);
         title_field.render(layout[0], buf);
